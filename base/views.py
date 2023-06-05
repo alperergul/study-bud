@@ -64,9 +64,17 @@ def home(request):
     rooms = Room.objects.filter(
         Q(topic__name__icontains=q) | Q(name__icontains=q) | Q(description__icontains=q)
     )
-    room_count = rooms.count()
+
     topics = Topic.objects.all()
-    context = {"rooms": rooms, "topics": topics, "room_count": room_count}
+    room_count = rooms.count()
+    room_messages = Message.objects.all()
+
+    context = {
+        "rooms": rooms,
+        "topics": topics,
+        "room_count": room_count,
+        "room_messages": room_messages,
+    }
     return render(request, "base/home.html", context)
 
 
@@ -75,13 +83,20 @@ def room(request, pk):
     # Child model olan Message'ın kayıtlarını getirir.
     room_messages = room.message_set.all().order_by("-created")
 
+    participants = room.participants.all()
+
     if request.method == "POST":
         message = Message.objects.create(
             user=request.user, room=room, body=request.POST.get("body")
         )
+        room.participants.add(request.user)
         return redirect("room", pk=room.id)
 
-    context = {"room": room, "room_messages": room_messages}
+    context = {
+        "room": room,
+        "room_messages": room_messages,
+        "participants": participants,
+    }
     return render(request, "base/room.html", context)
 
 
@@ -129,4 +144,19 @@ def deleteRoom(request, pk):
         return redirect("home")
 
     context = {"obj": room}
+    return render(request, "base/delete.html", context)
+
+
+@login_required(login_url="login")
+def deleteMessage(request, pk):
+    message = Message.objects.get(id=pk)
+
+    if request.user != message.user:
+        return HttpResponse("You are not allowed here!!")
+
+    if request.method == "POST":
+        message.delete()
+        return redirect("home")
+
+    context = {"obj": message}
     return render(request, "base/delete.html", context)
